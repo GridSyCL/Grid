@@ -566,6 +566,7 @@ void Replicate(Lattice<vobj> &coarse,Lattice<vobj> & fine)
     sobj tmp;
     peekSite(tmp,coarse,ccoor);
     pokeSite(tmp,fine,fcoor);
+    assert(0); // check that peek/poke here work without USM
   }
 
 }

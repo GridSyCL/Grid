@@ -9,6 +9,7 @@ Copyright (C) 2015
 Author: Azusa Yamaguchi <ayamaguc@staffmail.ed.ac.uk>
 Author: Peter Boyle <paboyle@ph.ed.ac.uk>
 Author: paboyle <paboyle@ph.ed.ac.uk>
+Author: Gianluca Filaci <g.filaci@ed.ac.uk>
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -37,9 +38,25 @@ NAMESPACE_BEGIN(Grid);
 extern int GridCshiftPermuteMap[4][16];
 
 ///////////////////////////////////////////////////////////////////
+// Class to store a generic pointer as void*
+// Useful when a type has virtual members
+// and its pointer could not be passed to a SYCL kernel
+///////////////////////////////////////////////////////////////////
+template <class T>
+class Ptr {
+ public:
+  void *ptr;
+  accelerator_inline T* operator->() const { return (T*)ptr; }
+  accelerator_inline operator T*& () const { return (T*&)ptr; }
+ Ptr(T* const & ptr_) : ptr((void*)ptr_) {}
+};
+
+///////////////////////////////////////////////////////////////////
 // Base class which can be used by traits to pick up behaviour
 ///////////////////////////////////////////////////////////////////
 class LatticeBase {};
+
+template <class vobj> class LatticeView;
 
 /////////////////////////////////////////////////////////////////////////////////////////
 // Conformable checks; same instance of Grid required
@@ -61,7 +78,7 @@ void accelerator_inline conformable(GridBase *lhs,GridBase *rhs)
 template<class vobj> class LatticeAccelerator : public LatticeBase
 {
 protected:
-  GridBase *_grid;
+  Ptr<GridBase>_grid;
   int checkerboard;
   vobj     *_odata;    // A managed pointer
   uint64_t _odata_size;    
@@ -75,36 +92,54 @@ public:
     if (grid) conformable(grid, _grid);
     else      grid = _grid;
   };
+
+  friend class LatticeView<vobj>;
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////
 // A View class which provides accessor to the data.
-// This will be safe to call from accelerator_for and is trivially copy constructible
-// The copy constructor for this will need to be used by device lambda functions
-/////////////////////////////////////////////////////////////////////////////////////////
+//
+// In SYCL, LatticeView can be either a SYCL accessor, a SYCL sampler or a trivially copyable and standard-layout C++ type.
+// LatticeView must contain:
+// - device accessor by value (without UVM, host addresses are not accessible on the device)
+// - LatticeAccelerator, with host pointer and auxiliary data (accessible only from the host)
+///////////////////////////////////////////////////////////////////////////////////////////
 template<class vobj> 
-class LatticeView : public LatticeAccelerator<vobj>
+class LatticeView : public LatticeBase
 {
 public:
 
+  typedef typename Accessor<vobj>::device_accessor device_accessor;
+
+  device_accessor da;
+  LatticeAccelerator<vobj> latt;
+  Accessor<vobj> *acc_ptr;
 
   // Rvalue
-#ifdef __CUDA_ARCH__
-  accelerator_inline const typename vobj::scalar_object operator()(size_t i) const { return coalescedRead(this->_odata[i]); }
-#else 
-  accelerator_inline const vobj & operator()(size_t i) const { return this->_odata[i]; }
+#ifdef __GRID_DEVICE_ONLY__
+  accelerator_inline const typename vobj::scalar_object operator()(size_t i) const { return coalescedRead(da[i]); }
+  accelerator_inline const vobj & operator[](size_t i) const { return da[i]; };
+  accelerator_inline vobj       & operator[](size_t i)       { return da[i]; };
+#else
+  accelerator_inline const vobj & operator()(size_t i) const { return acc_ptr->access_host(i); }
+  accelerator_inline const vobj & operator[](size_t i) const { return acc_ptr->access_host(i); };
+  accelerator_inline vobj       & operator[](size_t i)       { return acc_ptr->access_host(i); };
 #endif
 
-  accelerator_inline const vobj & operator[](size_t i) const { return this->_odata[i]; };
-  accelerator_inline vobj       & operator[](size_t i)       { return this->_odata[i]; };
-
   accelerator_inline uint64_t begin(void) const { return 0;};
-  accelerator_inline uint64_t end(void)   const { return this->_odata_size; };
-  accelerator_inline uint64_t size(void)  const { return this->_odata_size; };
+  accelerator_inline uint64_t end(void)   const { return latt._odata_size; };
+  accelerator_inline uint64_t size(void)  const { return latt._odata_size; };
 
-  LatticeView(const LatticeAccelerator<vobj> &refer_to_me) : LatticeAccelerator<vobj> (refer_to_me)
-  {
-  }
+ LatticeView(device_accessor da_, Accessor<vobj> *acc_ptr_, LatticeAccelerator<vobj> latt_) : da(da_), acc_ptr(acc_ptr_), latt(latt_) {}
+
+  // inheriting from LatticeAccelerator would spoil std layout
+  accelerator_inline uint64_t oSites(void)              const { return latt.oSites(); };
+  accelerator_inline int  Checkerboard(void)            const { return latt.Checkerboard(); };
+  accelerator_inline int &Checkerboard(void)                  { return latt.Checkerboard(); };
+  accelerator_inline void Conformable(GridBase * &grid) const { latt.Conformable(grid); }
+
+  // needed for the ET
+  auto View (void) const { return *this; }
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -123,6 +158,12 @@ template<class T, bool isLattice> struct ViewMapBase { typedef T Type; };
 template<class T>                 struct ViewMapBase<T,true> { typedef LatticeView<typename T::vector_object> Type; };
 template<class T> using ViewMap = ViewMapBase<T,std::is_base_of<LatticeBase, T>::value >;
 
+#define VIEW_FUNCTION_ET(dummy)						\
+  template <class T,typename std::enable_if<is_lattice<T>::value, T>::type * = nullptr> \
+    inline typename ViewMap<T>::Type View(const T &lat) { return lat.View(); } \
+    template <class T,typename std::enable_if<!is_lattice<T>::value, T>::type * = nullptr> \
+    inline T View(const T &lat) { return lat; }
+
 template <typename Op, typename _T1>                           
 class LatticeUnaryExpression : public  LatticeExpressionBase 
 {
@@ -130,7 +171,8 @@ public:
   typedef typename ViewMap<_T1>::Type T1;
   Op op;
   T1 arg1;
-  LatticeUnaryExpression(Op _op,const _T1 &_arg1) : op(_op), arg1(_arg1) {};
+  VIEW_FUNCTION_ET();
+ LatticeUnaryExpression(Op _op,const _T1 &_arg1) : op(_op), arg1(View(_arg1)) {};
 };
 
 template <typename Op, typename _T1, typename _T2>              
@@ -142,7 +184,8 @@ public:
   Op op;
   T1 arg1;
   T2 arg2;
-  LatticeBinaryExpression(Op _op,const _T1 &_arg1,const _T2 &_arg2) : op(_op), arg1(_arg1), arg2(_arg2) {};
+  VIEW_FUNCTION_ET();
+ LatticeBinaryExpression(Op _op,const _T1 &_arg1,const _T2 &_arg2) : op(_op), arg1(View(_arg1)), arg2(View(_arg2)) {};
 };
 
 template <typename Op, typename _T1, typename _T2, typename _T3> 
@@ -156,7 +199,8 @@ public:
   T1 arg1;
   T2 arg2;
   T3 arg3;
-  LatticeTrinaryExpression(Op _op,const _T1 &_arg1,const _T2 &_arg2,const _T3 &_arg3) : op(_op), arg1(_arg1), arg2(_arg2), arg3(_arg3) {};
+  VIEW_FUNCTION_ET();
+ LatticeTrinaryExpression(Op _op,const _T1 &_arg1,const _T2 &_arg2,const _T3 &_arg3) : op(_op), arg1(View(_arg1)), arg2(View(_arg2)), arg3(View(_arg3)) {};
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -176,6 +220,8 @@ public:
   typedef vobj vector_object;
 
 private:
+  Accessor<vobj> accessor;
+
   void dealloc(void)
   {
     alignedAllocator<vobj> alloc;
@@ -183,6 +229,7 @@ private:
       alloc.deallocate(this->_odata,this->_odata_size);
       this->_odata=nullptr;
       this->_odata_size=0;
+      accessor.delete_accessor();
     }
   }
   void resize(uint64_t size)
@@ -192,23 +239,22 @@ private:
       dealloc();
     }
     this->_odata_size = size;
-    if ( size ) 
+    if ( size ) {
       this->_odata      = alloc.allocate(this->_odata_size);
+      accessor.set_accessor(this->_odata,this->_odata_size);
+    }
     else 
       this->_odata      = nullptr;
   }
 public:
   /////////////////////////////////////////////////////////////////////////////////
   // Return a view object that may be dereferenced in site loops.
-  // The view is trivially copy constructible and may be copied to an accelerator device
-  // in device lambdas
   /////////////////////////////////////////////////////////////////////////////////
-  LatticeView<vobj> View (void) const 
-  {
-    LatticeView<vobj> accessor(*( (LatticeAccelerator<vobj> *) this));
-    return accessor;
+  auto View (void) const {
+    auto accessor_ptr = const_cast<Accessor<vobj>*>(&accessor);
+    push_accessor_to_list(accessor_ptr);
+    return LatticeView<vobj>(accessor.get_device_accessor(), accessor_ptr, *((LatticeAccelerator<vobj> *) this));
   }
-  
   ~Lattice() { 
     if ( this->_odata_size ) {
       dealloc();

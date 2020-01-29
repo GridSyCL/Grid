@@ -7,6 +7,7 @@
     Copyright (C) 2015
 
 Author: Peter Boyle <paboyle@ph.ed.ac.uk>
+Author: Gianluca Filaci <g.filaci@ed.ac.uk>
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -26,6 +27,7 @@ Author: Peter Boyle <paboyle@ph.ed.ac.uk>
     *************************************************************************************/
     /*  END LEGAL */
 #pragma once
+#include <Grid/lattice/Lattice_accessor.h>
 #include <Grid/lattice/Lattice_base.h>
 #include <Grid/lattice/Lattice_conformable.h>
 #include <Grid/lattice/Lattice_ET.h>

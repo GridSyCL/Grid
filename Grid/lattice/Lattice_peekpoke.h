@@ -142,12 +142,15 @@ void peekSite(sobj &s,const Lattice<vobj> &l,const Coordinate &site){
 
   ExtractBuffer<sobj> buf(Nsimd);
   auto l_v = l.View();
+  require_host();
+
   extract(l_v[odx],buf);
 
   s = buf[idx];
 
   grid->Broadcast(rank,s);
 
+  delete_accessors();
   return;
 };
 

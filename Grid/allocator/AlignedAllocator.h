@@ -189,6 +189,8 @@ public:
   #endif
     assert( ptr != (_Tp *)NULL);
 
+#endif
+#if !defined(GRID_SYCL) && !defined(GRID_NVCC)
     //////////////////////////////////////////////////
     // First touch optimise in threaded loop 
     //////////////////////////////////////////////////

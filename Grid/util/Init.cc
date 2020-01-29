@@ -10,6 +10,7 @@ Author: Azusa Yamaguchi <ayamaguc@staffmail.ed.ac.uk>
 Author: Peter Boyle <paboyle@ph.ed.ac.uk>
 Author: Peter Boyle <peterboyle@MacBook-Pro.local>
 Author: paboyle <paboyle@ph.ed.ac.uk>
+Author: Gianluca Filaci <g.filaci@ed.ac.uk>
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -74,6 +75,21 @@ feenableexcept (unsigned int excepts)
 #endif
 
 uint32_t gpu_threads=8;
+#ifdef GRID_SYCL
+std::unique_ptr<cl::sycl::queue> queue;
+AccessorContainer accessor_container;
+void exception_handler(cl::sycl::exception_list exceptions) {
+  for (std::exception_ptr const& e : exceptions) {
+    try {
+      std::rethrow_exception(e);
+    } catch(cl::sycl::exception const& e) {
+      std::cout << "Caught asynchronous SYCL exception:\n"
+      << e.what() << std::endl;
+      exit(0);
+    }
+  }
+}
+#endif
 
 NAMESPACE_BEGIN(Grid);
 
@@ -348,6 +364,24 @@ void GridGpuInit(void)
   if ( world_rank == 0 ) {
     printf("GpuInit: ================================================\n");
   }
+#elif defined(GRID_SYCL)
+  GridBanner();
+  // each rank should be mapped to a different device...
+  std::cout << " ======================= FIXME ======================= " << std::endl;
+  // list available devices
+  std::vector<cl::sycl::platform> platforms = cl::sycl::platform::get_platforms();
+  for (int p = 0; p < platforms.size(); p++) {
+    std::cout << "- Platform " << p << ": " << platforms[p].get_info<cl::sycl::info::platform::name>() << std::endl;
+    std::vector<cl::sycl::device> plat_devices = platforms[p].get_devices();
+    for(int d=0; d<plat_devices.size(); d++)
+      std::cout << "\tDevice " << d << ": " << plat_devices[d].get_info<cl::sycl::info::device::name>() << std::endl;
+  }
+  std::cout << std::endl;
+  // select one gpu
+  cl::sycl::gpu_selector device_selector;
+  queue = std::make_unique<cl::sycl::queue>(device_selector,exception_handler);
+  std::cout << "Running on " << queue->get_device().get_info<cl::sycl::info::device::name>() << std::endl;
+  std::cout << " ===================================================== " << std::endl;
 #endif
 }
 
