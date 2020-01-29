@@ -8,6 +8,7 @@
 
 Author: Peter Boyle <paboyle@ph.ed.ac.uk>
 Author: paboyle <paboyle@ph.ed.ac.uk>
+Author: Gianluca Filaci <g.filaci@ed.ac.uk>
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -36,6 +37,13 @@ Author: paboyle <paboyle@ph.ed.ac.uk>
 #define strong_inline     __attribute__((always_inline)) inline
 #define UNROLL  _Pragma("unroll")
 
+#if defined(__CUDA_ARCH__) || defined(__SYCL_DEVICE_ONLY__)
+#define __GRID_DEVICE_ONLY__
+#define accelerator_assert(value)
+#else
+#define accelerator_assert(value) assert(value)
+#endif
+
 //////////////////////////////////////////////////////////////////////////////////
 // New primitives; explicit host thread calls, and accelerator data parallel calls
 //////////////////////////////////////////////////////////////////////////////////
@@ -57,6 +65,11 @@ Author: paboyle <paboyle@ph.ed.ac.uk>
 #define thread_max(a) (1)
 #endif
 
+#ifdef CL_SYCL_LANGUAGE_VERSION
+#define GRID_SYCL
+#include <CL/sycl.hpp>
+#endif
+
 #define thread_for( i, num, ... )                           DO_PRAGMA(omp parallel for schedule(static)) for ( uint64_t i=0;i<num;i++) { __VA_ARGS__ } ;
 #define thread_foreach( i, container, ... )                 DO_PRAGMA(omp parallel for schedule(static)) for ( uint64_t i=container.begin();i<container.end();i++) { __VA_ARGS__ } ;
 #define thread_for_in_region( i, num, ... )                 DO_PRAGMA(omp for schedule(static))          for ( uint64_t i=0;i<num;i++) { __VA_ARGS__ } ;
@@ -75,6 +88,9 @@ Author: paboyle <paboyle@ph.ed.ac.uk>
 #endif
 
 #ifdef GRID_NVCC
+
+#define GRID_LANE_IDX      threadIdx.y
+#define syncSIMT(dummy)  __syncwarp();
 
 extern uint32_t gpu_threads;
 
@@ -123,8 +139,57 @@ void LambdaApplySIMT(uint64_t Isites, uint64_t Osites, lambda Lambda)
   accelerator_forNB(iterator, num, nsimd, { __VA_ARGS__ } );	\
   accelerator_barrier(dummy);
 
+#elif defined(GRID_SYCL)
+
+#define GRID_LANE_IDX __spirv::initGlobalInvocationId<2, cl::sycl::id<2>>()[1]
+// FIXME: can try SPIR-V commands from intel::sub_group barrier, but
+// on SIMD hardware a sub-group barrier is expected to be a no-op
+#define syncSIMT(dummy)
+
+extern std::unique_ptr<cl::sycl::queue> queue;
+
+#define accelerator
+#define accelerator_inline inline
+
+#ifdef __GRID_DEVICE_ONLY__
+#define sub_group_attribute //[[cl::intel_reqd_sub_group_size(8)]]
+#else
+#define sub_group_attribute
+#endif
+
+sub_group_attribute inline void set_sub_group_size() {};
+
+#define accelerator_barrier(dummy)				\
+  {								\
+    try {							\
+      queue->wait_and_throw();					\
+    } catch (cl::sycl::exception const& e) {			\
+      std::cout << "Caught synchronous SYCL exception:\n"	\
+		<< e.what() << std::endl;			\
+      exit(0);							\
+    }								\
+  }
+
+#define accelerator_forNB( iterator, num, nsimd, ... )			\
+  {									\
+    queue->submit([&] (cl::sycl::handler &cgh) {			\
+	cgh.parallel_for(cl::sycl::range<2>(num,nsimd),			\
+			 [=] (cl::sycl::id<2> id) mutable {		\
+			   set_sub_group_size();			\
+			   auto iterator = id[0];			\
+			   __VA_ARGS__;					\
+			 });						\
+      });                                                               \
+  }
+
+#define accelerator_for( iterator, num, nsimd, ... )		\
+  accelerator_forNB(iterator, num, nsimd, { __VA_ARGS__ } );	\
+  accelerator_barrier();
+
 #else
 
+#define GRID_LANE_IDX
+#define syncSIMT(dummy)
 #define accelerator 
 #define accelerator_inline strong_inline
 #define accelerator_for(iterator,num,nsimd, ... )   thread_for(iterator, num, { __VA_ARGS__ });

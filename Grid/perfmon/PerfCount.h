@@ -89,7 +89,7 @@ inline uint64_t cyclecount(void){
   return tmp;
 }
 #elif defined __x86_64__
-#ifdef GRID_NVCC
+#if defined(GRID_NVCC) || defined(GRID_SYCL)
 accelerator_inline uint64_t __rdtsc(void) {  return 0; }
 #endif
 inline uint64_t cyclecount(void){ 

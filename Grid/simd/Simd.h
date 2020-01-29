@@ -9,6 +9,7 @@ Copyright (C) 2015
 Author: Peter Boyle <paboyle@ph.ed.ac.uk>
 Author: neo <cossu@post.kek.jp>
 Author: paboyle <paboyle@ph.ed.ac.uk>
+Author: Gianluca Filaci <g.filaci@ed.ac.uk>
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -33,6 +34,8 @@ directory
 
 #ifdef GRID_NVCC
 #include <thrust/complex.h>
+#elif defined(GRID_SYCL)
+#include <Grid/simd/Grid_complex.h>
 #endif
 
 ////////////////////////////////////////////////////////////////////////
@@ -73,6 +76,13 @@ template<class T> using complex = thrust::complex<T>;
 
 accelerator_inline ComplexD pow(const ComplexD& r,RealD y){ return(thrust::pow(r,(double)y)); }
 accelerator_inline ComplexF pow(const ComplexF& r,RealF y){ return(thrust::pow(r,(float)y)); }
+#elif defined(GRID_SYCL)
+typedef Grid::complex<RealF> ComplexF;
+typedef Grid::complex<RealD> ComplexD;
+typedef Grid::complex<Real>  Complex;
+
+accelerator_inline ComplexD pow(const ComplexD& r,RealD y){ return(Grid::pow(r,(double)y)); }
+accelerator_inline ComplexF pow(const ComplexF& r,RealF y){ return(Grid::pow(r,(float)y)); }
 #else 
 typedef std::complex<RealF> ComplexF;
 typedef std::complex<RealD> ComplexD;

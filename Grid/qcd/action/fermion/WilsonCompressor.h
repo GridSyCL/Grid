@@ -94,7 +94,7 @@ public:
   /*****************************************************/
   accelerator_inline void Decompress(SiteHalfSpinor * __restrict__ out,
 				     SiteHalfSpinor * __restrict__ in, Integer o) {    
-    assert(0);
+    accelerator_assert(0);
   }
 
   /*****************************************************/
@@ -237,7 +237,7 @@ public:
     case Ym:	spProjYm(result,in);	break;
     case Zm:	spProjZm(result,in);	break;
     case Tm:	spProjTm(result,in);	break;
-    default: 	assert(0);	        break;
+    default: 	accelerator_assert(0);  break;
     }
   }
 };

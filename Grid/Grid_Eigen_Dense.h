@@ -5,6 +5,11 @@
 #define EIGEN_USE_MKL_ALL
 #endif
 
+// Do not vectorise when compiling for device
+// This is done automatically only under __CUDACC__ (probably Eigen bug)
+#ifdef __SYCL_DEVICE_ONLY__
+#define EIGEN_DONT_VECTORIZE
+#endif
 
 #if defined __GNUC__
 #pragma GCC diagnostic push

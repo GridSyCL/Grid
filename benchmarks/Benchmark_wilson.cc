@@ -8,6 +8,7 @@
 
 Author: Peter Boyle <paboyle@ph.ed.ac.uk>
 Author: paboyle <paboyle@ph.ed.ac.uk>
+Author: Gianluca Filaci <g.filaci@ed.ac.uk>
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -72,7 +73,6 @@ int main (int argc, char ** argv)
   GridRedBlackCartesian     RBGrid(&Grid);
 
   int threads = GridThread::GetThreads();
-
   GridLogLayout();
 
   std::cout<<GridLogMessage << "Grid floating point word size is REALF"<< sizeof(RealF)<<std::endl;
@@ -152,13 +152,18 @@ int main (int argc, char ** argv)
   
   std::cout<<GridLogMessage << "Calling Dw"<<std::endl;
   int ncall=1000;
+  int nwarm=100;
+  for(int i=0;i<nwarm;i++){
+    Dw.Dhop(src,result,0);
+  }
+
   double t0=usecond();
   for(int i=0;i<ncall;i++){
     Dw.Dhop(src,result,0);
   }
   double t1=usecond();
   double flops=single_site_flops*volume*ncall;
-  
+
   if (perfProfiling){
   std::cout<<GridLogMessage << "Profiling Dw with perf"<<std::endl;
     
@@ -178,7 +183,7 @@ int main (int argc, char ** argv)
   std::cout<<GridLogMessage << "flops per site " << single_site_flops << std::endl;
   std::cout<<GridLogMessage << "norm result "<< norm2(result)<<std::endl;
   std::cout<<GridLogMessage << "norm ref    "<< norm2(ref)<<std::endl;
-  std::cout<<GridLogMessage << "mflop/s =   "<< flops/(t1-t0)<<std::endl;
+  std::cout<<GridLogMessage << "mflop/s =   " << flops/(t1-t0) << " (" << (t1-t0)/1000./(double)ncall << " ms)" << std::endl;
   err = ref-result; 
   std::cout<<GridLogMessage << "norm diff   "<< norm2(err)<<std::endl;
 

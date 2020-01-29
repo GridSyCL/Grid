@@ -336,7 +336,7 @@ void WilsonKernels<Impl>::DhopDirKernel( StencilImpl &st, DoubledGaugeField &U,S
     for(int s=0;s<Ls;s++){
       int sU=ss;
       int sF = s+Ls*sU; 
-      DhopDirK(st_v,U_v,st.CommBuf(),sF,sU,in_v,out_v,dirdisp,gamma);
+      DhopDirK(st_v,U_v,st_v.CommBuf(),sF,sU,in_v,out_v,dirdisp,gamma);
     }
   });
 } 
@@ -346,7 +346,7 @@ void WilsonKernels<Impl>::DhopDirKernel( StencilImpl &st, DoubledGaugeField &U,S
   accelerator_forNB( ss, NN, Simd::Nsimd(), {				\
       int sF = ss;							\
       int sU = ss/Ls;							\
-      WilsonKernels<Impl>::A(st_v,U_v,buf,sF,sU,in_v,out_v);		\
+      WilsonKernels<Impl>::A(st_v,U_v,st_v.CommBuf(),sF,sU,in_v,out_v);	\
   });
 
 #define KERNEL_CALL(A) KERNEL_CALLNB(A); accelerator_barrier(); 
@@ -370,19 +370,19 @@ void WilsonKernels<Impl>::DhopKernel(int Opt,StencilImpl &st,  DoubledGaugeField
 
    if( interior && exterior ) { 
      if (Opt == WilsonKernelsStatic::OptGeneric    ) { KERNEL_CALL(GenericDhopSite); return;}
-#ifndef GRID_NVCC
+#if !defined(GRID_NVCC) && !defined(GRID_SYCL)
      if (Opt == WilsonKernelsStatic::OptHandUnroll ) { KERNEL_CALL(HandDhopSite);    return;}
      if (Opt == WilsonKernelsStatic::OptInlineAsm  ) {  ASM_CALL(AsmDhopSite); printf(".");    return;}
 #endif
    } else if( interior ) {
      if (Opt == WilsonKernelsStatic::OptGeneric    ) { KERNEL_CALLNB(GenericDhopSiteInt); return;}
-#ifndef GRID_NVCC
+#if !defined(GRID_NVCC) && !defined(GRID_SYCL)
      if (Opt == WilsonKernelsStatic::OptHandUnroll ) { KERNEL_CALLNB(HandDhopSiteInt);    return;}
      if (Opt == WilsonKernelsStatic::OptInlineAsm  ) {  ASM_CALL(AsmDhopSiteInt); printf("-");    return;}
 #endif
    } else if( exterior ) { 
      if (Opt == WilsonKernelsStatic::OptGeneric    ) { KERNEL_CALL(GenericDhopSiteExt); return;}
-#ifndef GRID_NVCC
+#if !defined(GRID_NVCC) && !defined(GRID_SYCL)
      if (Opt == WilsonKernelsStatic::OptHandUnroll ) { KERNEL_CALL(HandDhopSiteExt);    return;}
      if (Opt == WilsonKernelsStatic::OptInlineAsm  ) {  ASM_CALL(AsmDhopSiteExt); printf("+");    return;}
 #endif
@@ -401,19 +401,19 @@ void WilsonKernels<Impl>::DhopKernel(int Opt,StencilImpl &st,  DoubledGaugeField
 
    if( interior && exterior ) { 
      if (Opt == WilsonKernelsStatic::OptGeneric    ) { KERNEL_CALL(GenericDhopSiteDag); return;}
-#ifndef GRID_NVCC
+#if !defined(GRID_NVCC) && !defined(GRID_SYCL)
      if (Opt == WilsonKernelsStatic::OptHandUnroll ) { KERNEL_CALL(HandDhopSiteDag);    return;}
      if (Opt == WilsonKernelsStatic::OptInlineAsm  ) {  ASM_CALL(AsmDhopSiteDag);     return;}
 #endif
    } else if( interior ) {
      if (Opt == WilsonKernelsStatic::OptGeneric    ) { KERNEL_CALL(GenericDhopSiteDagInt); return;}
-#ifndef GRID_NVCC
+#if !defined(GRID_NVCC) && !defined(GRID_SYCL)
      if (Opt == WilsonKernelsStatic::OptHandUnroll ) { KERNEL_CALL(HandDhopSiteDagInt);    return;}
      if (Opt == WilsonKernelsStatic::OptInlineAsm  ) {  ASM_CALL(AsmDhopSiteDagInt);     return;}
 #endif
    } else if( exterior ) { 
      if (Opt == WilsonKernelsStatic::OptGeneric    ) { KERNEL_CALL(GenericDhopSiteDagExt); return;}
-#ifndef GRID_NVCC
+#if !defined(GRID_NVCC) && !defined(GRID_SYCL)
      if (Opt == WilsonKernelsStatic::OptHandUnroll ) { KERNEL_CALL(HandDhopSiteDagExt);    return;}
      if (Opt == WilsonKernelsStatic::OptInlineAsm  ) {  ASM_CALL(AsmDhopSiteDagExt);     return;}
 #endif

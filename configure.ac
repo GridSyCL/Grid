@@ -59,6 +59,21 @@ if test "${ac_cv_prog_cxx_openmp}X" != "noX"; then
   AM_LDFLAGS="$OPENMP_CXXFLAGS $AM_LDFLAGS"
 fi
 
+############### SYCL
+AC_ARG_ENABLE([sycl],
+    [AC_HELP_STRING([--enable-sycl=yes|no], [enable SYCL])],
+    [ac_SYCL=${enable_sycl}], [ac_SYCL=no])
+
+case ${ac_SYCL} in
+    no)
+        ;;
+    yes)
+        # -fsycl-unnamed-lambda is used when compiling but not when linking
+        CPPFLAGS="$CPPFLAGS -fsycl-unnamed-lambda"
+        CXXFLAGS="$CXXFLAGS -std=c++17";;
+    *)
+	AC_MSG_ERROR(["SYCL option not supported ${ac_SYCL}"]);;
+esac
 
 ############### Checks for header files
 AC_CHECK_HEADERS(stdint.h)
@@ -301,7 +316,7 @@ case ${ax_cv_cxx_compiler_vendor} in
   clang|gnu)
     case ${ac_SIMD} in
       GPU)
-        AC_DEFINE([GPU_VEC],[1],[GPU vectorised 512bit])
+        AC_DEFINE([GPU_VEC],[1],[GPU vectorised])
         AC_DEFINE_UNQUOTED([GEN_SIMD_WIDTH],[$ac_gen_simd_width],
                            [generic SIMD vector width (in bytes)])
         SIMD_GEN_WIDTH_MSG=" (width= $ac_gen_simd_width)"
@@ -589,6 +604,7 @@ compiler version            : ${ax_cv_gxx_version}
 ----- BUILD OPTIONS -----------------------------------
 SIMD                        : ${ac_SIMD}${SIMD_GEN_WIDTH_MSG}
 Threading                   : ${ac_openmp}
+SYCL                        : ${ac_SYCL}
 Communications type         : ${comms_type}
 Shared memory allocator     : ${ac_SHM}
 Shared memory mmap path     : ${ac_SHMPATH}
@@ -618,6 +634,7 @@ AC_CONFIG_FILES([grid-config], [chmod +x grid-config])
 AC_CONFIG_FILES(Makefile)
 AC_CONFIG_FILES(Grid/Makefile)
 AC_CONFIG_FILES(HMC/Makefile)
+if test "${ac_SYCL}" = yes; then LIBS="$LIBS -foffload-static-lib=$(pwd)/Grid/libGrid.a"; fi
 AC_CONFIG_FILES(tests/Makefile)
 AC_CONFIG_FILES(tests/IO/Makefile)
 AC_CONFIG_FILES(tests/core/Makefile)

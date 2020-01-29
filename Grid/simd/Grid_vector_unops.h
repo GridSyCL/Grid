@@ -10,6 +10,7 @@ Author: Azusa Yamaguchi <ayamaguc@staffmail.ed.ac.uk>
 Author: Peter Boyle <paboyle@ph.ed.ac.uk>
 Author: neo <cossu@post.kek.jp>
 Author: paboyle <paboyle@ph.ed.ac.uk>
+Author: Gianluca Filaci <g.filaci@ed.ac.uk>
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -34,42 +35,48 @@ directory
 
 #include <cmath>
 
+#ifdef GRID_SYCL
+namespace accelerator_std = cl::sycl;
+#else
+namespace accelerator_std = std;
+#endif
+
 NAMESPACE_BEGIN(Grid);
 
 template <class scalar>
 struct SqrtRealFunctor {
-  accelerator scalar operator()(const scalar &a) const { return sqrt(real(a)); }
+  accelerator scalar operator()(const scalar &a) const { return accelerator_std::sqrt(real(a)); }
 };
 
 template <class scalar>
 struct RSqrtRealFunctor {
   accelerator scalar operator()(const scalar &a) const {
-    return scalar(1.0 / sqrt(real(a)));
+    return scalar(1.0 / accelerator_std::sqrt(real(a)));
   }
 };
 
 template <class scalar>
 struct CosRealFunctor {
-  accelerator scalar operator()(const scalar &a) const { return cos(real(a)); }
+  accelerator scalar operator()(const scalar &a) const { return accelerator_std::cos(real(a)); }
 };
 
 template <class scalar>
 struct SinRealFunctor {
-  accelerator scalar operator()(const scalar &a) const { return sin(real(a)); }
+  accelerator scalar operator()(const scalar &a) const { return accelerator_std::sin(real(a)); }
 };
 
 template <class scalar>
 struct AcosRealFunctor {
-  accelerator scalar operator()(const scalar &a) const { return acos(real(a)); }
+  accelerator scalar operator()(const scalar &a) const { return accelerator_std::acos(real(a)); }
 };
 
 template <class scalar>
 struct AsinRealFunctor {
-  accelerator scalar operator()(const scalar &a) const { return asin(real(a)); }
+  accelerator scalar operator()(const scalar &a) const { return accelerator_std::asin(real(a)); }
 };
 template <class scalar>
 struct LogRealFunctor {
-  accelerator scalar operator()(const scalar &a) const { return log(real(a)); }
+  accelerator scalar operator()(const scalar &a) const { return accelerator_std::log(real(a)); }
 };
 template <class scalar>
 struct ExpFunctor {
@@ -81,7 +88,7 @@ struct NotFunctor {
 };
 template <class scalar>
 struct AbsRealFunctor {
-  accelerator scalar operator()(const scalar &a) const { return std::abs(real(a)); }
+  accelerator scalar operator()(const scalar &a) const { return accelerator_std::abs(real(a)); }
 };
 template <class scalar>
 struct PowRealFunctor {

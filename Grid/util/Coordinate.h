@@ -52,13 +52,13 @@ public:
   accelerator_inline size_type size(void) const { return _size; };
   accelerator_inline void  clear(void) { resize(0);}
   accelerator_inline void  resize(size_type sz) {
-    assert(sz>=0);
-    assert(sz<=MaxEntries);
+    accelerator_assert(sz>=0);
+    accelerator_assert(sz<=MaxEntries);
     _size = sz;
   }
   accelerator_inline void  resize(size_type sz,const value &val) {
-    assert(sz>=0);
-    assert(sz<=MaxEntries);
+    accelerator_assert(sz>=0);
+    accelerator_assert(sz<=MaxEntries);
     _size = sz;
     for(int s=0;s<sz;s++) _data[s]=val;
   }

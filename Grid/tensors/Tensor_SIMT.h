@@ -7,6 +7,7 @@
     Copyright (C) 2015
 
 Author: Peter Boyle <paboyle@ph.ed.ac.uk>
+Author: Gianluca Filaci <g.filaci@ed.ac.uk>
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -31,21 +32,19 @@ Author: Peter Boyle <paboyle@ph.ed.ac.uk>
 
 NAMESPACE_BEGIN(Grid);
 
-//accelerator_inline void SIMTsynchronise(void) 
 accelerator_inline void synchronise(void) 
 {
-#ifdef __CUDA_ARCH__
-//  __syncthreads();
-  __syncwarp();
+#ifdef __GRID_DEVICE_ONLY__
+  syncSIMT();
 #endif
   return;
 }
 
-#ifndef __CUDA_ARCH__
+#ifndef __GRID_DEVICE_ONLY__
 //////////////////////////////////////////
 // Trivial mapping of vectors on host
 //////////////////////////////////////////
-accelerator_inline int SIMTlane(int Nsimd) { return 0; } // CUDA specific
+accelerator_inline int SIMTlane(int Nsimd) { return 0; }
 
 template<class vobj> accelerator_inline
 vobj coalescedRead(const vobj & __restrict__ vec,int lane=0)
@@ -75,7 +74,7 @@ void coalescedWriteNonTemporal(vobj & __restrict__ vec,const vobj & __restrict__
   vstream(vec, extracted);
 }
 #else
-accelerator_inline int SIMTlane(int Nsimd) { return threadIdx.y; } // CUDA specific
+accelerator_inline int SIMTlane(int Nsimd) { return GRID_LANE_IDX; }
 
 //////////////////////////////////////////
 // Extract and insert slices on the GPU

@@ -271,7 +271,7 @@ NAMESPACE_BEGIN(Grid);
   {
     const unsigned int nd  = grid_->Nd();
     auto  l   = grid_->FullDimensions();
-    Integer            vol = 1;
+    Real            vol = 1;
 
     for(unsigned int mu = 0; mu < nd; mu++)
     {

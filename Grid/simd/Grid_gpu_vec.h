@@ -7,6 +7,7 @@
     Copyright (C) 2018
 
 Author: Peter Boyle <paboyle@ph.ed.ac.uk>
+Author: Gianluca Filaci <g.filaci@ed.ac.uk>
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -32,7 +33,30 @@ Author: Peter Boyle <paboyle@ph.ed.ac.uk>
 */
 //----------------------------------------------------------------------
 
+#ifdef GRID_NVCC
 #include <cuda_fp16.h>
+#elif defined(GRID_SYCL)
+template<class datum> struct datum2 {
+  datum x;
+  datum y;
+};
+typedef datum2<half>   half2;
+//typedef datum2<float>  float2;
+//typedef datum2<double> double2;
+//using half2   = cl::sycl::cl_half   __attribute__((ext_vector_type(2)));
+using float2  = cl::sycl::cl_float  __attribute__((ext_vector_type(2)));
+using double2 = cl::sycl::cl_double __attribute__((ext_vector_type(2)));
+#endif
+
+template <class T> class VectorBaseType;
+#define DECLARE_VEC2_BASE_TYPES(base)		\
+  template <> class VectorBaseType<base##2> {	\
+  public:					\
+    using type = base;				\
+  };
+DECLARE_VEC2_BASE_TYPES(half);
+DECLARE_VEC2_BASE_TYPES(float);
+DECLARE_VEC2_BASE_TYPES(double);
 
 namespace Grid {
 
@@ -41,8 +65,11 @@ namespace Grid {
 template<class pair>
 class GpuComplex {
 public:
+#ifdef GRID_SYCL
+  alignas(sizeof(pair))
+#endif
   pair z;
-  typedef decltype(z.x) real;
+  typedef typename VectorBaseType<pair>::type real;
 public: 
   accelerator_inline GpuComplex() = default;
   accelerator_inline GpuComplex(real re,real im) { z.x=re; z.y=im; };
@@ -141,6 +168,7 @@ typedef GpuVector<NSIMD_Integer,  Integer     > GpuVectorI;
 
 accelerator_inline float half2float(half h)
 {
+#ifdef GRID_NVCC
   float f;
 #ifdef __CUDA_ARCH__
   f = __half2float(h);
@@ -152,9 +180,20 @@ accelerator_inline float half2float(half h)
   f=  sfw_half_to_float(hh);
 #endif
   return f;
+#else
+  //FIXME
+  /*
+  float f;
+  Grid_half *hp = (Grid_half *)&h;
+  f = sfw_half_to_float(hp[0]);
+  return f;
+  */
+  return (float)h;
+#endif
 }
 accelerator_inline half float2half(float f)
 {
+#ifdef GRID_NVCC
   half h;
 #ifdef __CUDA_ARCH__
   h = __float2half(f);
@@ -165,6 +204,10 @@ accelerator_inline half float2half(float f)
   h = __half(hr);
 #endif
   return h;
+#else
+  //FIXME
+  return (half)f;
+#endif
 }
 
 namespace Optimization {

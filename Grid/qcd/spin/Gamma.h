@@ -1181,7 +1181,7 @@ accelerator_inline auto operator*(const Gamma &G, const iVector<vtype, Ns> &arg)
     multMinusSigmaZT(ret, arg); break;
   case Gamma::Algebra::SigmaZT:
     multSigmaZT(ret, arg); break;
-  default: assert(0);
+  default: accelerator_assert(0);
   }
   
   return ret;
@@ -1259,7 +1259,7 @@ accelerator_inline auto operator*(const Gamma &G, const iMatrix<vtype, Ns> &arg)
     lmultMinusSigmaZT(ret, arg); break;
   case Gamma::Algebra::SigmaZT:
     lmultSigmaZT(ret, arg); break;
-  default: assert(0);
+  default: accelerator_assert(0);
   }
   
   return ret;
@@ -1337,7 +1337,7 @@ accelerator_inline auto operator*(const iMatrix<vtype, Ns> &arg, const Gamma &G)
     rmultMinusSigmaZT(ret, arg); break;
   case Gamma::Algebra::SigmaZT:
     rmultSigmaZT(ret, arg); break;
-  default: assert(0);
+  default: accelerator_assert(0);
   }
   
   return ret;

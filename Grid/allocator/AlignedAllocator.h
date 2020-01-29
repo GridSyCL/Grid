@@ -8,6 +8,7 @@
 
 Author: Azusa Yamaguchi <ayamaguc@staffmail.ed.ac.uk>
 Author: Peter Boyle <paboyle@ph.ed.ac.uk>
+Author: Gianluca Filaci <g.filaci@ed.ac.uk>
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -38,6 +39,10 @@ Author: Peter Boyle <paboyle@ph.ed.ac.uk>
 
 #ifdef HAVE_MM_MALLOC_H
 #include <mm_malloc.h>
+#endif
+
+#ifdef GRID_SYCL
+extern std::unique_ptr<cl::sycl::queue> queue;
 #endif
 
 #define POINTER_CACHE
@@ -85,6 +90,11 @@ public:
   static bool        debug;
 };
 
+#ifdef __GRID_DEVICE_ONLY__
+#define profilerDebugPrint
+#define profilerAllocate(bytes)
+#define profilerFree(bytes)
+#else
 #define memString(bytes) std::to_string(bytes) + " (" + sizeString(bytes) + ")"
 #define profilerDebugPrint						\
   if (MemoryProfiler::stats)						\
@@ -127,6 +137,7 @@ public:
       std::cout << GridLogDebug << "[Memory debug] freeing " << memString(bytes) << std::endl; \
       profilerDebugPrint;						\
     }
+#endif
 
 void check_huge_pages(void *Buf,uint64_t BYTES);
 
@@ -178,7 +189,13 @@ public:
       }
     }
     assert( ptr != (_Tp *)NULL);
-#else 
+#elif defined(GRID_SYCL)
+    ////////////////////////////////////
+    // 2MB aligned Unified Shared Memory (USM)
+    ////////////////////////////////////
+    if ( ptr == (_Tp *) NULL ) ptr = (_Tp *) cl::sycl::aligned_alloc_shared(GRID_ALLOC_ALIGN, bytes, queue->get_device(), queue->get_context());
+    assert( ptr != (_Tp *)NULL);
+#else
     //////////////////////////////////////////////////////////////////////////////////////////
     // 2MB align; could make option probably doesn't need configurability
     //////////////////////////////////////////////////////////////////////////////////////////
@@ -189,6 +206,8 @@ public:
   #endif
     assert( ptr != (_Tp *)NULL);
 
+#endif
+#if !defined(GRID_SYCL) && !defined(GRID_NVCC)
     //////////////////////////////////////////////////
     // First touch optimise in threaded loop 
     //////////////////////////////////////////////////
@@ -213,6 +232,8 @@ public:
 
 #ifdef GRID_NVCC
     if ( __freeme ) cudaFree((void *)__freeme);
+#elif defined(GRID_SYCL)
+    if ( __freeme ) cl::sycl::free((void *)__freeme, queue->get_context());
 #else 
   #ifdef HAVE_MM_MALLOC_H
     if ( __freeme ) _mm_free((void *)__freeme); 
